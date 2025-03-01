@@ -43,7 +43,7 @@ def login():
     senha = entry_senha.get()
     
     if not nome_usuario or not senha:
-        messagebox.showerror("Erro", "Por favor, preencha todos os campos.")
+        messagebox.showerror("Erro", "Preencha todos os campos.")
         return
     
     if autenticar_usuario(nome_usuario, senha):
@@ -149,7 +149,7 @@ def recuperar_senha():
             else:
                 messagebox.showerror("Erro", "Usuário não encontrado!")
         else:
-            messagebox.showerror("Erro", "Por favor, preencha o nome de usuário.")
+            messagebox.showerror("Erro", "Preencha o nome de usuário.")
     
     rec_window = tk.Tk()
     rec_window.title("Recuperar Senha")
@@ -175,7 +175,7 @@ def executar_assistente_configuracao():
     window_assistente.geometry("500x400")
     window_assistente.configure(bg="#f0f0f0")
     
-    tk.Label(window_assistente, text="Bem-vindo ao sistema!\nPor favor, configure o usuário administrador.", font=("Arial", 14), bg="#f0f0f0").pack(pady=20)
+    tk.Label(window_assistente, text="Bem-vindo ao sistema! Configure o usuário administrador.", font=("Arial", 14), bg="#f0f0f0").pack(pady=20)
     
     tk.Label(window_assistente, text="Nome de usuário:", font=("Arial", 12), bg="#f0f0f0").pack()
     entry_admin_usuario = tk.Entry(window_assistente, font=("Arial", 12))
@@ -201,14 +201,14 @@ def executar_assistente_configuracao():
             usuarios = carregar_usuarios()
             senha_hash = gerar_hash_senha(senha)
             if usuario in usuarios:
-                messagebox.showerror("Erro", "Usuário já existe! Tente outro nome de usuário.")
+                messagebox.showerror("Erro", "Usuário já existe! Tente outro nome.")
                 return
             usuarios[usuario] = senha_hash
             salvar_usuarios(usuarios)
             messagebox.showinfo("Sucesso", "Configuração inicial concluída!")
             window_assistente.destroy()
         else:
-            messagebox.showerror("Erro", "Por favor, preencha todos os campos.")
+            messagebox.showerror("Erro", "Preencha todos os campos.")
     
     tk.Button(window_assistente, text="Concluir", command=finalizar_configuracao, bg="#4CAF50", fg="white", font=("Arial", 12), relief="flat").pack(pady=20)
     
