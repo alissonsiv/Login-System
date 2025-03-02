@@ -4,8 +4,11 @@ from hashlib import sha256
 import json
 import os
 import re
+import random
+import string
 
 usuarios_file = "usuarios.json"
+tentativas_login = {}
 
 def carregar_usuarios():
     if os.path.exists(usuarios_file):
@@ -38,6 +41,9 @@ def validar_senha(senha):
         return "A senha deve conter letras, números e pelo menos um caractere especial."
     return ""
 
+def gerar_token_recuperacao():
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=20))
+
 def login():
     nome_usuario = entry_usuario.get()
     senha = entry_senha.get()
@@ -46,15 +52,32 @@ def login():
         messagebox.showerror("Erro", "Preencha todos os campos.")
         return
     
+    if nome_usuario in tentativas_login and tentativas_login[nome_usuario] >= 3:
+        messagebox.showerror("Erro", "Conta bloqueada devido a múltiplas tentativas falhadas. Tente novamente mais tarde.")
+        return
+    
     if autenticar_usuario(nome_usuario, senha):
         messagebox.showinfo("Sucesso", "Login realizado com sucesso!")
         window.destroy()
         abrir_sistema(nome_usuario)
+        tentativas_login[nome_usuario] = 0  # Resetando tentativas após sucesso
     else:
-        messagebox.showerror("Erro", "Usuário ou senha incorretos!")
+        tentativas_login[nome_usuario] = tentativas_login.get(nome_usuario, 0) + 1
+        if tentativas_login[nome_usuario] >= 3:
+            messagebox.showerror("Erro", "Conta bloqueada após 3 tentativas falhadas.")
+        else:
+            messagebox.showerror("Erro", "Usuário ou senha incorretos!")
+
+def mostrar_ou_ocultar_senha():
+    if entry_senha.cget("show") == "*":
+        entry_senha.config(show="")
+        btn_olho.config(text="Ocultar Senha")
+    else:
+        entry_senha.config(show="*")
+        btn_olho.config(text="Mostrar Senha")
 
 def criar_interface_login():
-    global window, entry_usuario, entry_senha
+    global window, entry_usuario, entry_senha, btn_olho
     window = tk.Tk()
     window.title("Sistema de Login")
     window.geometry("400x300")
@@ -71,6 +94,9 @@ def criar_interface_login():
     entry_senha = tk.Entry(frame_login, show="*", font=("Arial", 12))
     entry_senha.grid(row=1, column=1, padx=10, pady=10)
     
+    btn_olho = tk.Button(frame_login, text="Mostrar Senha", command=mostrar_ou_ocultar_senha, bg="#f0f0f0", font=("Arial", 10), relief="flat")
+    btn_olho.grid(row=1, column=2, padx=10, pady=10)
+
     btn_login = tk.Button(frame_login, text="Entrar", command=login, bg="#4CAF50", fg="white", font=("Arial", 12), relief="flat")
     btn_login.grid(row=2, columnspan=2, pady=20)
     btn_login.bind("<Enter>", lambda e: btn_login.config(bg="#45a049"))
@@ -144,7 +170,8 @@ def recuperar_senha():
         if usuario:
             usuarios = carregar_usuarios()
             if usuario in usuarios:
-                messagebox.showinfo("Sucesso", f"Instruções para recuperação de senha enviadas para o e-mail de {usuario}.")
+                token = gerar_token_recuperacao()
+                messagebox.showinfo("Sucesso", f"Instruções para recuperação de senha enviadas para o e-mail de {usuario}. Token: {token}")
                 rec_window.destroy()
             else:
                 messagebox.showerror("Erro", "Usuário não encontrado!")
