@@ -6,6 +6,7 @@ import os
 import re
 import random
 import string
+import time
 
 usuarios_file = "usuarios.json"
 tentativas_login = {}
@@ -26,13 +27,20 @@ def salvar_usuarios(usuarios):
     except IOError as e:
         messagebox.showerror("Erro", f"Erro ao salvar usuários: {e}")
 
-def gerar_hash_senha(senha, salt="sistema_login"):
+def gerar_hash_senha(senha, salt):
     return sha256((senha + salt).encode()).hexdigest()
+
+def gerar_salt():
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=16))
 
 def autenticar_usuario(nome_usuario, senha):
     usuarios = carregar_usuarios()
-    senha_hash = gerar_hash_senha(senha)
-    return usuarios.get(nome_usuario) == senha_hash
+    if nome_usuario not in usuarios:
+        return False
+    
+    salt = usuarios[nome_usuario]["salt"]
+    senha_hash = gerar_hash_senha(senha, salt)
+    return usuarios[nome_usuario]["senha"] == senha_hash
 
 def validar_senha(senha):
     if len(senha) < 6:
@@ -52,18 +60,25 @@ def login():
         messagebox.showerror("Erro", "Preencha todos os campos.")
         return
     
-    if nome_usuario in tentativas_login and tentativas_login[nome_usuario] >= 3:
-        messagebox.showerror("Erro", "Conta bloqueada devido a múltiplas tentativas falhadas. Tente novamente mais tarde.")
-        return
+    if nome_usuario in tentativas_login and tentativas_login[nome_usuario]["tentativas"] >= 3:
+        ultimo_tentativa = tentativas_login[nome_usuario]["ultimo_tentativa"]
+        if time.time() - ultimo_tentativa < 600:  # Bloqueio de 10 minutos
+            messagebox.showerror("Erro", "Conta bloqueada devido a múltiplas tentativas falhadas. Tente novamente mais tarde.")
+            return
+        else:
+            tentativas_login[nome_usuario]["tentativas"] = 0  # Resetando tentativas após 10 minutos
     
     if autenticar_usuario(nome_usuario, senha):
         messagebox.showinfo("Sucesso", "Login realizado com sucesso!")
         window.destroy()
         abrir_sistema(nome_usuario)
-        tentativas_login[nome_usuario] = 0  # Resetando tentativas após sucesso
+        tentativas_login[nome_usuario] = {"tentativas": 0}  # Resetando tentativas após sucesso
     else:
-        tentativas_login[nome_usuario] = tentativas_login.get(nome_usuario, 0) + 1
-        if tentativas_login[nome_usuario] >= 3:
+        tentativas_login[nome_usuario] = tentativas_login.get(nome_usuario, {"tentativas": 0})
+        tentativas_login[nome_usuario]["tentativas"] += 1
+        tentativas_login[nome_usuario]["ultimo_tentativa"] = time.time()
+        
+        if tentativas_login[nome_usuario]["tentativas"] >= 3:
             messagebox.showerror("Erro", "Conta bloqueada após 3 tentativas falhadas.")
         else:
             messagebox.showerror("Erro", "Usuário ou senha incorretos!")
@@ -151,8 +166,9 @@ def abrir_configuracoes(nome_usuario):
             return
         
         usuarios = carregar_usuarios()
-        senha_hash = gerar_hash_senha(nova_senha)
-        usuarios[nome_usuario] = senha_hash
+        salt = usuarios[nome_usuario]["salt"]
+        senha_hash = gerar_hash_senha(nova_senha, salt)
+        usuarios[nome_usuario]["senha"] = senha_hash
         salvar_usuarios(usuarios)
         messagebox.showinfo("Sucesso", "Senha alterada com sucesso!")
     
@@ -226,11 +242,12 @@ def executar_assistente_configuracao():
             if not validar_senha(senha):
                 return
             usuarios = carregar_usuarios()
-            senha_hash = gerar_hash_senha(senha)
+            salt = gerar_salt()
+            senha_hash = gerar_hash_senha(senha, salt)
             if usuario in usuarios:
                 messagebox.showerror("Erro", "Usuário já existe! Tente outro nome.")
                 return
-            usuarios[usuario] = senha_hash
+            usuarios[usuario] = {"senha": senha_hash, "salt": salt}
             salvar_usuarios(usuarios)
             messagebox.showinfo("Sucesso", "Configuração inicial concluída!")
             window_assistente.destroy()
