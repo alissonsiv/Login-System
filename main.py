@@ -5,11 +5,8 @@ import json
 import os
 import re
 import random
-import string
-import time
 
 usuarios_file = "usuarios.json"
-tentativas_login = {}
 
 def carregar_usuarios():
     if os.path.exists(usuarios_file):
@@ -27,20 +24,13 @@ def salvar_usuarios(usuarios):
     except IOError as e:
         messagebox.showerror("Erro", f"Erro ao salvar usuários: {e}")
 
-def gerar_hash_senha(senha, salt):
+def gerar_hash_senha(senha, salt="sistema_login"):
     return sha256((senha + salt).encode()).hexdigest()
-
-def gerar_salt():
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=16))
 
 def autenticar_usuario(nome_usuario, senha):
     usuarios = carregar_usuarios()
-    if nome_usuario not in usuarios:
-        return False
-    
-    salt = usuarios[nome_usuario]["salt"]
-    senha_hash = gerar_hash_senha(senha, salt)
-    return usuarios[nome_usuario]["senha"] == senha_hash
+    senha_hash = gerar_hash_senha(senha)
+    return usuarios.get(nome_usuario) == senha_hash
 
 def validar_senha(senha):
     if len(senha) < 6:
@@ -48,9 +38,6 @@ def validar_senha(senha):
     if not re.search(r"[A-Za-z]", senha) or not re.search(r"\d", senha) or not re.search(r"[@$!%*?&]", senha):
         return "A senha deve conter letras, números e pelo menos um caractere especial."
     return ""
-
-def gerar_token_recuperacao():
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=20))
 
 def login():
     nome_usuario = entry_usuario.get()
@@ -60,39 +47,15 @@ def login():
         messagebox.showerror("Erro", "Preencha todos os campos.")
         return
     
-    if nome_usuario in tentativas_login and tentativas_login[nome_usuario]["tentativas"] >= 3:
-        ultimo_tentativa = tentativas_login[nome_usuario]["ultimo_tentativa"]
-        if time.time() - ultimo_tentativa < 600:  # Bloqueio de 10 minutos
-            messagebox.showerror("Erro", "Conta bloqueada devido a múltiplas tentativas falhadas. Tente novamente mais tarde.")
-            return
-        else:
-            tentativas_login[nome_usuario]["tentativas"] = 0  # Resetando tentativas após 10 minutos
-    
     if autenticar_usuario(nome_usuario, senha):
         messagebox.showinfo("Sucesso", "Login realizado com sucesso!")
         window.destroy()
         abrir_sistema(nome_usuario)
-        tentativas_login[nome_usuario] = {"tentativas": 0}  # Resetando tentativas após sucesso
     else:
-        tentativas_login[nome_usuario] = tentativas_login.get(nome_usuario, {"tentativas": 0})
-        tentativas_login[nome_usuario]["tentativas"] += 1
-        tentativas_login[nome_usuario]["ultimo_tentativa"] = time.time()
-        
-        if tentativas_login[nome_usuario]["tentativas"] >= 3:
-            messagebox.showerror("Erro", "Conta bloqueada após 3 tentativas falhadas.")
-        else:
-            messagebox.showerror("Erro", "Usuário ou senha incorretos!")
-
-def mostrar_ou_ocultar_senha():
-    if entry_senha.cget("show") == "*":
-        entry_senha.config(show="")
-        btn_olho.config(text="Ocultar Senha")
-    else:
-        entry_senha.config(show="*")
-        btn_olho.config(text="Mostrar Senha")
+        messagebox.showerror("Erro", "Usuário ou senha incorretos!")
 
 def criar_interface_login():
-    global window, entry_usuario, entry_senha, btn_olho
+    global window, entry_usuario, entry_senha
     window = tk.Tk()
     window.title("Sistema de Login")
     window.geometry("400x300")
@@ -109,9 +72,6 @@ def criar_interface_login():
     entry_senha = tk.Entry(frame_login, show="*", font=("Arial", 12))
     entry_senha.grid(row=1, column=1, padx=10, pady=10)
     
-    btn_olho = tk.Button(frame_login, text="Mostrar Senha", command=mostrar_ou_ocultar_senha, bg="#f0f0f0", font=("Arial", 10), relief="flat")
-    btn_olho.grid(row=1, column=2, padx=10, pady=10)
-
     btn_login = tk.Button(frame_login, text="Entrar", command=login, bg="#4CAF50", fg="white", font=("Arial", 12), relief="flat")
     btn_login.grid(row=2, columnspan=2, pady=20)
     btn_login.bind("<Enter>", lambda e: btn_login.config(bg="#45a049"))
@@ -166,9 +126,8 @@ def abrir_configuracoes(nome_usuario):
             return
         
         usuarios = carregar_usuarios()
-        salt = usuarios[nome_usuario]["salt"]
-        senha_hash = gerar_hash_senha(nova_senha, salt)
-        usuarios[nome_usuario]["senha"] = senha_hash
+        senha_hash = gerar_hash_senha(nova_senha)
+        usuarios[nome_usuario] = senha_hash
         salvar_usuarios(usuarios)
         messagebox.showinfo("Sucesso", "Senha alterada com sucesso!")
     
@@ -181,14 +140,21 @@ def abrir_configuracoes(nome_usuario):
     config_window.mainloop()
 
 def recuperar_senha():
-    def enviar_email():
+    def enviar_codigo_recuperacao():
         usuario = entry_recuperar_usuario.get()
         if usuario:
             usuarios = carregar_usuarios()
             if usuario in usuarios:
-                token = gerar_token_recuperacao()
-                messagebox.showinfo("Sucesso", f"Instruções para recuperação de senha enviadas para o e-mail de {usuario}. Token: {token}")
-                rec_window.destroy()
+                email_usuario = usuarios[usuario].get('email')
+                if email_usuario:
+                    # Simulação do envio de código
+                    codigo_recuperacao = random.randint(100000, 999999)  # Gera um código de 6 dígitos
+                    usuarios[usuario]['codigo_recuperacao'] = codigo_recuperacao
+                    salvar_usuarios(usuarios)
+                    messagebox.showinfo("Sucesso", f"Código de recuperação enviado para o e-mail de {usuario}.")
+                    rec_window.destroy()
+                else:
+                    messagebox.showerror("Erro", "E-mail não cadastrado para este usuário.")
             else:
                 messagebox.showerror("Erro", "Usuário não encontrado!")
         else:
@@ -204,8 +170,8 @@ def recuperar_senha():
     entry_recuperar_usuario = tk.Entry(rec_window, font=("Arial", 12))
     entry_recuperar_usuario.pack(pady=5)
     
-    btn_enviar_email = tk.Button(rec_window, text="Enviar Instruções", command=enviar_email, bg="#4CAF50", fg="white", font=("Arial", 12), relief="flat")
-    btn_enviar_email.pack(pady=20)
+    btn_enviar_codigo = tk.Button(rec_window, text="Enviar Código de Recuperação", command=enviar_codigo_recuperacao, bg="#4CAF50", fg="white", font=("Arial", 12), relief="flat")
+    btn_enviar_codigo.pack(pady=20)
     
     rec_window.mainloop()
 
@@ -227,6 +193,10 @@ def executar_assistente_configuracao():
     tk.Label(window_assistente, text="Senha:", font=("Arial", 12), bg="#f0f0f0").pack()
     entry_admin_senha = tk.Entry(window_assistente, show="*", font=("Arial", 12))
     entry_admin_senha.pack()
+    
+    tk.Label(window_assistente, text="E-mail:", font=("Arial", 12), bg="#f0f0f0").pack()
+    entry_admin_email = tk.Entry(window_assistente, font=("Arial", 12))
+    entry_admin_email.pack()
 
     def validar_senha(senha):
         if len(senha) < 6:
@@ -237,17 +207,17 @@ def executar_assistente_configuracao():
     def finalizar_configuracao():
         usuario = entry_admin_usuario.get()
         senha = entry_admin_senha.get()
+        email = entry_admin_email.get()
         
-        if usuario and senha:
+        if usuario and senha and email:
             if not validar_senha(senha):
                 return
             usuarios = carregar_usuarios()
-            salt = gerar_salt()
-            senha_hash = gerar_hash_senha(senha, salt)
+            senha_hash = gerar_hash_senha(senha)
             if usuario in usuarios:
                 messagebox.showerror("Erro", "Usuário já existe! Tente outro nome.")
                 return
-            usuarios[usuario] = {"senha": senha_hash, "salt": salt}
+            usuarios[usuario] = {'senha': senha_hash, 'email': email}
             salvar_usuarios(usuarios)
             messagebox.showinfo("Sucesso", "Configuração inicial concluída!")
             window_assistente.destroy()
