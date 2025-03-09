@@ -6,12 +6,13 @@ import os
 import re
 import random
 
-usuarios_file = "usuarios.json"
+USUARIOS_FILE = "usuarios.json"
+SALT = "sistema_login"
 
 def carregar_usuarios():
-    if os.path.exists(usuarios_file):
+    if os.path.exists(USUARIOS_FILE):
         try:
-            with open(usuarios_file, "r") as f:
+            with open(USUARIOS_FILE, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             return {}
@@ -19,18 +20,21 @@ def carregar_usuarios():
 
 def salvar_usuarios(usuarios):
     try:
-        with open(usuarios_file, "w") as f:
+        with open(USUARIOS_FILE, "w") as f:
             json.dump(usuarios, f, indent=4)
     except IOError as e:
         messagebox.showerror("Erro", f"Erro ao salvar usuários: {e}")
 
-def gerar_hash_senha(senha, salt="sistema_login"):
-    return sha256((senha + salt).encode()).hexdigest()
+def gerar_hash_senha(senha):
+    return sha256((senha + SALT).encode()).hexdigest()
+
+def gerar_hash_codigo(codigo):
+    return sha256(str(codigo).encode()).hexdigest()
 
 def autenticar_usuario(nome_usuario, senha):
     usuarios = carregar_usuarios()
     senha_hash = gerar_hash_senha(senha)
-    return usuarios.get(nome_usuario) == senha_hash
+    return usuarios.get(nome_usuario, {}).get('senha') == senha_hash
 
 def validar_senha(senha):
     if len(senha) < 6:
@@ -86,7 +90,7 @@ def abrir_sistema(nome_usuario):
     system_window = tk.Tk()
     system_window.title("Sistema Principal")
     system_window.geometry("500x400")
-    system_window.configure(bg="#f0f0f0") 
+    system_window.configure(bg="#f0f0f0")
     
     label_bem_vindo = tk.Label(system_window, text=f"Bem-vindo, {nome_usuario}!", font=("Arial", 16), bg="#f0f0f0")
     label_bem_vindo.pack(pady=50)
@@ -127,7 +131,7 @@ def abrir_configuracoes(nome_usuario):
         
         usuarios = carregar_usuarios()
         senha_hash = gerar_hash_senha(nova_senha)
-        usuarios[nome_usuario] = senha_hash
+        usuarios[nome_usuario] = {'senha': senha_hash, 'email': usuarios[nome_usuario]['email']}
         salvar_usuarios(usuarios)
         messagebox.showinfo("Sucesso", "Senha alterada com sucesso!")
     
@@ -147,9 +151,9 @@ def recuperar_senha():
             if usuario in usuarios:
                 email_usuario = usuarios[usuario].get('email')
                 if email_usuario:
-                    # Simulação do envio de código
-                    codigo_recuperacao = random.randint(100000, 999999)  # Gera um código de 6 dígitos
-                    usuarios[usuario]['codigo_recuperacao'] = codigo_recuperacao
+                    codigo_recuperacao = random.randint(100000, 999999)
+                    codigo_hash = gerar_hash_codigo(codigo_recuperacao)
+                    usuarios[usuario]['codigo_recuperacao'] = codigo_hash
                     salvar_usuarios(usuarios)
                     messagebox.showinfo("Sucesso", f"Código de recuperação enviado para o e-mail de {usuario}.")
                     rec_window.destroy()
@@ -176,7 +180,7 @@ def recuperar_senha():
     rec_window.mainloop()
 
 def primeira_execucao():
-    return not os.path.exists(usuarios_file)
+    return not os.path.exists(USUARIOS_FILE)
 
 def executar_assistente_configuracao():
     window_assistente = tk.Tk()
@@ -198,19 +202,14 @@ def executar_assistente_configuracao():
     entry_admin_email = tk.Entry(window_assistente, font=("Arial", 12))
     entry_admin_email.pack()
 
-    def validar_senha(senha):
-        if len(senha) < 6:
-            messagebox.showerror("Erro", "A senha deve ter no mínimo 6 caracteres.")
-            return False
-        return True
-    
     def finalizar_configuracao():
         usuario = entry_admin_usuario.get()
         senha = entry_admin_senha.get()
         email = entry_admin_email.get()
         
         if usuario and senha and email:
-            if not validar_senha(senha):
+            if len(senha) < 6:
+                messagebox.showerror("Erro", "A senha deve ter no mínimo 6 caracteres.")
                 return
             usuarios = carregar_usuarios()
             senha_hash = gerar_hash_senha(senha)
